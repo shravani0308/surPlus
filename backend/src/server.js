@@ -16,12 +16,35 @@ try {
 dotenv.config();
 
 const app = express();
-const PORT = process.env.PORT || 8000;
-const MONGODB_URI =  'mongodb://127.0.0.1:27017/surpluslinkk';
+const PORT = process.env.PORT || 5000;
+const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/surpluslink';
 
 // Middlewares
 app.use(cors());
 app.use(express.json());
+
+// Serverless Cached Database Connection
+let isConnected = false;
+async function connectDB() {
+  if (isConnected || mongoose.connection.readyState === 1) return;
+  try {
+    console.log(`[SurplusLink] Connecting to MongoDB: ${MONGODB_URI}...`);
+    await mongoose.connect(MONGODB_URI);
+    isConnected = true;
+    console.log('[SurplusLink] Connected to MongoDB Atlas successfully.');
+
+    // Seed initial data if state is empty
+    await checkAndSeedDatabase();
+  } catch (error) {
+    console.error('[SurplusLink] Database connection notice:', error.message);
+  }
+}
+
+// Connect DB on incoming requests
+app.use(async (req, res, next) => {
+  await connectDB();
+  next();
+});
 
 // API Routes
 app.use('/api', apiRouter);
@@ -34,23 +57,23 @@ app.get('/api/health', (req, res) => {
   });
 });
 
-// Start Server immediately
-app.listen(PORT, () => {
-  console.log(`[SurplusLink] Server listening on http://localhost:${PORT}`);
+// Root welcome endpoint
+app.get('/', (req, res) => {
+  res.json({
+    message: 'SurplusLink API is running',
+    health: '/api/health',
+    donations: '/api/donations',
+    clock: '/api/clock',
+    dashboard: '/api/dashboard'
+  });
 });
 
-// Connect to Database
-async function connectDB() {
-  try {
-    console.log(`[SurplusLink] Connecting to MongoDB: ${MONGODB_URI}...`);
-    await mongoose.connect(MONGODB_URI);
-    console.log('[SurplusLink] Connected to MongoDB Atlas successfully.');
-
-    // Seed initial data if state is empty
-    await checkAndSeedDatabase();
-  } catch (error) {
-    console.error('[SurplusLink] Database connection notice:', error.message);
-  }
+// Only listen locally if not running as a Vercel serverless function
+if (!process.env.VERCEL) {
+  app.listen(PORT, () => {
+    console.log(`[SurplusLink] Server listening on http://localhost:${PORT}`);
+  });
+  connectDB();
 }
 
-connectDB();
+export default app;
