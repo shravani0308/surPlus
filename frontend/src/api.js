@@ -1,6 +1,13 @@
 // API helper for SurplusLink backend
 
-const API_BASE = '/api';
+const getApiBase = () => {
+  const envUrl = import.meta.env.VITE_API_URL;
+  if (!envUrl) return '/api';
+  const clean = envUrl.replace(/\/$/, '');
+  return clean.endsWith('/api') ? clean : `${clean}/api`;
+};
+
+const API_BASE = getApiBase();
 
 export async function fetchClock() {
   const res = await fetch(`${API_BASE}/clock`);
